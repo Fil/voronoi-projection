@@ -1,68 +1,77 @@
 #!/usr/bin/env node --max-old-space-size=4096
 
 var width = 5 * 960,
-    height = 5 * 500;
+  height = 5 * 500;
 
 var fs = require("fs"),
-    topojson = require("topojson-client"),
-    Canvas = require("canvas"),
-    d3 = Object.assign({}, require("d3-array"), require("d3-geo"), require("d3-geo-voronoi"), require("d3-geo-polygon"));
+  topojson = require("topojson-client"),
+  Canvas = require("canvas"),
+  d3 = Object.assign(
+    {},
+    require("d3-array"),
+    require("d3-geo"),
+    require("d3-geo-voronoi"),
+    require("d3-geo-polygon")
+  );
 
 var canvas = new Canvas(width, height),
-    context = canvas.getContext("2d");
+  context = canvas.getContext("2d");
 
 var world = require("world-atlas/world/110m.json"),
-    land = topojson.feature(world, world.objects.land),
-    graticule = d3.geoGraticule(),
-    outline = {type: "Sphere"};
-
+  land = topojson.feature(world, world.objects.land),
+  graticule = d3.geoGraticule(),
+  outline = { type: "Sphere" };
 
 const n = +process.argv[2] || 200;
 
-
 var time = Date.now();
 
-process.stderr.write('computing points… ');
+process.stderr.write("computing points… ");
 
 // this gains 99% on the computation of points.property.land
 // const contains = (f => d3.geoContains(land,f));
 const contains = geoContainsCache(land);
 
-const points = (function(){
-  Math.seed = function(s) { return function() { s = Math.sin(s) * 10000; return s - Math.floor(s); }; };
+const points = (function() {
+  Math.seed = function(s) {
+    return function() {
+      s = Math.sin(s) * 10000;
+      return s - Math.floor(s);
+    };
+  };
   Math.random = Math.seed(4);
-  
+
   var points = {
     type: "FeatureCollection",
     features: d3.range(n).map(i => {
-      var f =  [ 360 * Math.random() -180, 90 * (Math.random() - Math.random()) ];
+      var f = [360 * Math.random() - 180, 90 * (Math.random() - Math.random())];
       return {
-          type: "Point",
-          index: i,
-          properties: { land: contains(f) ? 0 : 100000 },
-          coordinates: f
-      }
+        type: "Point",
+        index: i,
+        properties: { land: contains(f) ? 0 : 100000 },
+        coordinates: f
+      };
     })
-  }
+  };
 
- return points;
+  return points;
 })();
-
 
 // https://beta.observablehq.com/@fil/another-hex-map#geoContainsCache
 function geoContainsCache(land) {
-  var w = 5000, h = 5000,
-      projection = d3.geoAzimuthalEqualArea().fitSize([w,h], {type:"Sphere"}),
-      canvas = new Canvas(w,h),
-      context = canvas.getContext("2d"),
-      path = d3.geoPath(projection, context);
+  var w = 5000,
+    h = 5000,
+    projection = d3.geoAzimuthalEqualArea().fitSize([w, h], { type: "Sphere" }),
+    canvas = new Canvas(w, h),
+    context = canvas.getContext("2d"),
+    path = d3.geoPath(projection, context);
   canvas.width = w;
   canvas.height = h;
   context.fillStyle = "white";
-  context.fillRect(0,0,w,h);
+  context.fillRect(0, 0, w, h);
   context.fillStyle = "black";
   context.beginPath(), path(land), context.fill();
-  var c = context.getImageData(0,0,w,h).data;
+  var c = context.getImageData(0, 0, w, h).data;
   canvas = context = path = null; // free up memory
   return function(point) {
     point = projection(point);
@@ -70,140 +79,138 @@ function geoContainsCache(land) {
   };
 }
 
-console.warn(Date.now() - time); time = Date.now();
+console.warn(Date.now() - time);
+time = Date.now();
 
-process.stderr.write('computing voronoi… ');
-const v = d3.geoVoronoi()(points);
+process.stderr.write("computing voronoi… ");
+const voro = d3.geoVoronoi()(points);
 
-const polygons = v.polygons();
+const polygons = voro.polygons();
 
 const kruskal = (function() {
   // https://github.com/mikolalysenko/union-find
-const UnionFind = (function() {
+  const UnionFind = (function() {
+    "use strict";
+    "use restrict";
 
-"use strict"; "use restrict";
+    function UnionFind(count) {
+      this.roots = new Array(count);
+      this.ranks = new Array(count);
 
+      for (var i = 0; i < count; ++i) {
+        this.roots[i] = i;
+        this.ranks[i] = 0;
+      }
+    }
 
-function UnionFind(count) {
-  this.roots = new Array(count);
-  this.ranks = new Array(count);
-  
-  for(var i=0; i<count; ++i) {
-    this.roots[i] = i;
-    this.ranks[i] = 0;
+    var proto = UnionFind.prototype;
+
+    Object.defineProperty(proto, "length", {
+      get: function() {
+        return this.roots.length;
+      }
+    });
+
+    proto.makeSet = function() {
+      var n = this.roots.length;
+      this.roots.push(n);
+      this.ranks.push(0);
+      return n;
+    };
+
+    proto.find = function(x) {
+      var x0 = x;
+      var roots = this.roots;
+      while (roots[x] !== x) {
+        x = roots[x];
+      }
+      while (roots[x0] !== x) {
+        var y = roots[x0];
+        roots[x0] = x;
+        x0 = y;
+      }
+      return x;
+    };
+
+    proto.link = function(x, y) {
+      var xr = this.find(x),
+        yr = this.find(y);
+      if (xr === yr) {
+        return;
+      }
+      var ranks = this.ranks,
+        roots = this.roots,
+        xd = ranks[xr],
+        yd = ranks[yr];
+      if (xd < yd) {
+        roots[xr] = yr;
+      } else if (yd < xd) {
+        roots[yr] = xr;
+      } else {
+        roots[yr] = xr;
+        ++ranks[xr];
+      }
+    };
+
+    return UnionFind;
+  })();
+
+  function kruskal(graph, dist) {
+    // 1   A := ø
+    const A = [];
+    // 2   pour chaque sommet v de G :
+    // 3      créerEnsemble(v)
+    let n = -Infinity;
+    graph.forEach(l => {
+      if (l.source.index > n) n = l.source.index;
+      if (l.target.index > n) n = l.target.index;
+    });
+    const uf = new UnionFind(n);
+    // 4   trier les arêtes de G par poids croissant
+    graph = graph.map(l => {
+      l.w = l.w || l.length || dist(l.source, l.target);
+      return l;
+    });
+    graph
+      .sort((a, b) => d3.ascending(a.w, b.w))
+      // 5   pour chaque arête (u, v) de G prise par poids croissant :
+      .forEach(l => {
+        // 6      si find(u) ≠ find(v) :
+        if (uf.find(l.source.index) != uf.find(l.target.index)) {
+          // 7         ajouter l'arête (u, v) à l'ensemble A
+          A.push(l);
+          // 8         union(u, v)
+          uf.link(l.source.index, l.target.index);
+        }
+      });
+    // 9   retourner A
+    return A;
+    //	yield uf;
   }
-}
 
-var proto = UnionFind.prototype
-
-Object.defineProperty(proto, "length", {
-  "get": function() {
-    return this.roots.length
-  }
-})
-
-proto.makeSet = function() {
-  var n = this.roots.length;
-  this.roots.push(n);
-  this.ranks.push(0);
-  return n;
-}
-
-proto.find = function(x) {
-  var x0 = x
-  var roots = this.roots;
-  while(roots[x] !== x) {
-    x = roots[x]
-  }
-  while(roots[x0] !== x) {
-    var y = roots[x0]
-    roots[x0] = x
-    x0 = y
-  }
-  return x;
-}
-
-proto.link = function(x, y) {
-  var xr = this.find(x)
-    , yr = this.find(y);
-  if(xr === yr) {
-    return;
-  }
-  var ranks = this.ranks
-    , roots = this.roots
-    , xd    = ranks[xr]
-    , yd    = ranks[yr];
-  if(xd < yd) {
-    roots[xr] = yr;
-  } else if(yd < xd) {
-    roots[yr] = xr;
-  } else {
-    roots[yr] = xr;
-    ++ranks[xr];
-  }
-}
-
-	return UnionFind;
-})()
-
-function kruskal(graph, dist) {
-// 1   A := ø
-	const A = [];
-// 2   pour chaque sommet v de G :
-// 3      créerEnsemble(v)
-  let n = -Infinity;
-  graph.forEach(l => {
-    if (l.source.index > n) n = l.source.index;
-    if (l.target.index > n) n = l.target.index;
-  })
-  const uf = new UnionFind(n);
-// 4   trier les arêtes de G par poids croissant
-	graph = graph.map(l => {
-		l.w = l.w || l.length || dist(l.source, l.target);
-		return l;
-	})
-  graph.sort((a,b) => d3.ascending(a.w, b.w))
-// 5   pour chaque arête (u, v) de G prise par poids croissant :
-  .forEach(l => {
-// 6      si find(u) ≠ find(v) :
-		if (uf.find(l.source.index) != uf.find(l.target.index)) {
-// 7         ajouter l'arête (u, v) à l'ensemble A
-			A.push(l);
-// 8         union(u, v)
-			uf.link(l.source.index, l.target.index);
-		}
-	});
-// 9   retourner A
-	return A;
-//	yield uf;
-}
-  
   return kruskal;
 })();
 
 const parents = (function() {
-
   var n = points.features.length;
-  
-  var links = v.links().features.map(d => d.properties);//.filter(d => d.urquhart)
-  
+
+  var links = voro.links().features.map(d => d.properties); //.filter(d => d.urquhart)
+
   do {
     var more = 0;
     links.forEach(d => {
       var e = d3.extent([d.source.properties.land, d.target.properties.land]);
       if (e[0] > 10000) {
         more++;
-      }
-      else if (d.source.properties.land > e[0]) {
+      } else if (d.source.properties.land > e[0]) {
         d.source.properties.land = e[0] + 1;
-      }
-      else if (d.target.properties.land > e[0]) {
+      } else if (d.target.properties.land > e[0]) {
         d.target.properties.land = e[0] + 1;
       }
     });
-  } while(more);
+  } while (more);
 
-  points.features.map(d => d.properties.land = d.properties.land || -100000);
+  points.features.map(d => (d.properties.land = d.properties.land || -100000));
 
   do {
     var more = 0;
@@ -211,29 +218,31 @@ const parents = (function() {
       var e = d3.extent([d.source.properties.land, d.target.properties.land]);
       if (e[1] < -10000) {
         more++;
-      }
-      else if (d.source.properties.land < e[1]) {
+      } else if (d.source.properties.land < e[1]) {
         d.source.properties.land = e[1] - 1;
-      }
-      else if (d.target.properties.land < e[1]) {
+      } else if (d.target.properties.land < e[1]) {
         d.target.properties.land = e[1] - 1;
       }
     });
-  } while(more);
+  } while (more);
 
-  var extent = d3.extent(points.features, d => d.properties.land)
+  var extent = d3.extent(points.features, d => d.properties.land);
   //console.log(extent, points.features.map(d => d.properties.land))
-  
-  
+
   links.forEach(d => {
-    d.mult = 1 * ((1 - extent[0] + d.source.properties.land)*(1 - extent[0] + d.source.properties.land) * (1 - extent[0] + d.target.properties.land)* (1 - extent[0] + d.target.properties.land));
+    d.mult =
+      1 *
+      ((1 - extent[0] + d.source.properties.land) *
+        (1 - extent[0] + d.source.properties.land) *
+        (1 - extent[0] + d.target.properties.land) *
+        (1 - extent[0] + d.target.properties.land));
     d.w = d.length * d.mult; // divide / d.mult to favor ocean links
   });
-  
+
   var k = {
     type: "FeatureCollection",
     features: kruskal(links).map(l => ({
-     	type:"LineString",
+      type: "LineString",
       coordinates: [l.source.coordinates, l.target.coordinates],
       properties: l
     }))
@@ -245,14 +254,13 @@ const parents = (function() {
   do {
     k.features.forEach(l => {
       var s = l.properties.source.index,
-          t = l.properties.target.index;
+        t = l.properties.target.index;
       if (parents[s] !== undefined && parents[t] === undefined) {
         parents[t] = s;
-        search --;
-      }
-      else if (parents[t] !== undefined && parents[s] === undefined) {
+        search--;
+      } else if (parents[t] !== undefined && parents[s] === undefined) {
         parents[s] = t;
-        search --;
+        search--;
       }
     });
   } while (search > 0);
@@ -262,50 +270,57 @@ const parents = (function() {
 
 const degrees = 180 / Math.PI;
 const faceFind = function(lambda, phi) {
-	return v.find(lambda * degrees, phi * degrees).index;
-}
+  return voro.find(lambda * degrees, phi * degrees).index;
+};
 
-console.warn(Date.now() - time); time = Date.now();
-process.stderr.write('computing projection… ');
-const projection = d3.geoPolyhedralVoronoi(parents, polygons, null, null && faceFind)
+console.warn(Date.now() - time);
+time = Date.now();
+process.stderr.write("computing projection… ");
+const projection = d3
+  .geoPolyhedralVoronoi(parents, polygons, null, null && faceFind)
   .angle(29 /* + 90 */) // ocean
-  .fitExtent([[0,0],[width,height]], {type:"Sphere"});
+  .fitExtent([[0, 0], [width, height]], { type: "Sphere" });
 
-var path = d3.geoPath()
-      .projection(projection)
-      .context(context);
-
+var path = d3
+  .geoPath()
+  .projection(projection)
+  .context(context);
 
 context.fillStyle = "#fff";
 context.fillRect(0, 0, width, height);
 
-console.warn(Date.now() - time); time = Date.now();
-process.stderr.write('projecting sphere… ');
+console.warn(Date.now() - time);
+time = Date.now();
+process.stderr.write("projecting sphere… ");
 context.beginPath();
 path(outline);
 context.fillStyle = "#fefef6";
 context.fill();
 
-console.warn(Date.now() - time); time = Date.now();
-process.stderr.write('projecting land… ');
+console.warn(Date.now() - time);
+time = Date.now();
+process.stderr.write("projecting land… ");
 context.beginPath();
 path(land);
 context.fillStyle = "#000";
 context.fill();
 
-console.warn(Date.now() - time); time = Date.now();
-process.stderr.write('projecting graticule… ');
+console.warn(Date.now() - time);
+time = Date.now();
+process.stderr.write("projecting graticule… ");
 context.beginPath();
 path(graticule());
 context.strokeStyle = "rgba(119,119,119,0.5)";
 context.stroke();
 
-console.warn(Date.now() - time); time = Date.now();
-process.stderr.write('projecting sphere… ');
+console.warn(Date.now() - time);
+time = Date.now();
+process.stderr.write("projecting sphere… ");
 context.beginPath();
 path(outline);
 context.strokeStyle = "#000";
 context.stroke();
 
-console.warn(Date.now() - time); time = Date.now();
+console.warn(Date.now() - time);
+time = Date.now();
 canvas.pngStream().pipe(process.stdout);
