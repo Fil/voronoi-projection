@@ -1,7 +1,7 @@
 #!/usr/bin/env node --max-old-space-size=4096
 
 var width = 5 * 960,
-  height = 5 * 500;
+  height = 5 * 960;
 
 var fs = require("fs"),
   topojson = require("topojson-client"),
@@ -28,10 +28,6 @@ var time = Date.now();
 
 process.stderr.write("computing points… ");
 
-// this gains 99% on the computation of points.property.land
-// const contains = (f => d3.geoContains(land,f));
-const contains = geoContainsCache(land);
-
 const points = (function() {
   Math.seed = function(s) {
     return function() {
@@ -41,51 +37,38 @@ const points = (function() {
   };
   Math.random = Math.seed(4);
 
-  var points = {
-    type: "FeatureCollection",
-    features: d3.range(n).map(i => {
-      var f = [360 * Math.random() - 180, 90 * (Math.random() - Math.random())];
-      return {
-        type: "Point",
-        index: i,
-        properties: { land: contains(f) ? 0 : 100000 },
-        coordinates: f
-      };
-    })
-  };
-
-  return points;
+  return [[0, 0, 0]].concat(
+    d3
+      .range(n - 1)
+      .map(i => [
+        360 * Math.random() - 180,
+        90 * (Math.random() - Math.random()),
+        i + 1
+      ])
+  );
 })();
-
-// https://beta.observablehq.com/@fil/another-hex-map#geoContainsCache
-function geoContainsCache(land) {
-  var w = 5000,
-    h = 5000,
-    projection = d3.geoAzimuthalEqualArea().fitSize([w, h], { type: "Sphere" }),
-    canvas = new Canvas(w, h),
-    context = canvas.getContext("2d"),
-    path = d3.geoPath(projection, context);
-  canvas.width = w;
-  canvas.height = h;
-  context.fillStyle = "white";
-  context.fillRect(0, 0, w, h);
-  context.fillStyle = "black";
-  context.beginPath(), path(land), context.fill();
-  var c = context.getImageData(0, 0, w, h).data;
-  canvas = context = path = null; // free up memory
-  return function(point) {
-    point = projection(point);
-    return c[4 * (Math.floor(point[0]) + Math.floor(point[1]) * w)] < 128;
-  };
-}
 
 console.warn(Date.now() - time);
 time = Date.now();
-
 process.stderr.write("computing voronoi… ");
+
 const voro = d3.geoVoronoi()(points);
 
 const polygons = voro.polygons();
+
+// this gains 99% on the computation of points.property.land
+// const contains = (f => d3.geoContains(land,f));
+console.warn(Date.now() - time);
+time = Date.now();
+process.stderr.write("computing distances… ");
+
+const contains = geoContainsCache(land),
+  inland = points.map(d => +contains(d)),
+  shore = points.map(dist2shore());
+
+function cost2(a, b) {
+  return d3.geoDistance(a, b) / (2 + (shore[a[2]] + shore[b[2]]));
+}
 
 const kruskal = (function() {
   // https://github.com/mikolalysenko/union-find
@@ -165,10 +148,12 @@ const kruskal = (function() {
       if (l.source.index > n) n = l.source.index;
       if (l.target.index > n) n = l.target.index;
     });
+
     const uf = new UnionFind(n);
     // 4   trier les arêtes de G par poids croissant
+
     graph = graph.map(l => {
-      l.w = l.w || l.length || dist(l.source, l.target);
+      l.w = dist ? dist(l.source, l.target) : l.length;
       return l;
     });
     graph
@@ -191,70 +176,32 @@ const kruskal = (function() {
   return kruskal;
 })();
 
+console.warn(Date.now() - time);
+time = Date.now();
+process.stderr.write("computing tree… ");
 const parents = (function() {
-  var n = points.features.length;
+  var n = points.length;
 
   var links = voro.links().features.map(d => d.properties); //.filter(d => d.urquhart)
 
-  do {
-    var more = 0;
-    links.forEach(d => {
-      var e = d3.extent([d.source.properties.land, d.target.properties.land]);
-      if (e[0] > 10000) {
-        more++;
-      } else if (d.source.properties.land > e[0]) {
-        d.source.properties.land = e[0] + 1;
-      } else if (d.target.properties.land > e[0]) {
-        d.target.properties.land = e[0] + 1;
-      }
-    });
-  } while (more);
-
-  points.features.map(d => (d.properties.land = d.properties.land || -100000));
-
-  do {
-    var more = 0;
-    links.forEach(d => {
-      var e = d3.extent([d.source.properties.land, d.target.properties.land]);
-      if (e[1] < -10000) {
-        more++;
-      } else if (d.source.properties.land < e[1]) {
-        d.source.properties.land = e[1] - 1;
-      } else if (d.target.properties.land < e[1]) {
-        d.target.properties.land = e[1] - 1;
-      }
-    });
-  } while (more);
-
-  var extent = d3.extent(points.features, d => d.properties.land);
-  //console.log(extent, points.features.map(d => d.properties.land))
-
-  links.forEach(d => {
-    d.mult =
-      1 *
-      ((1 - extent[0] + d.source.properties.land) *
-        (1 - extent[0] + d.source.properties.land) *
-        (1 - extent[0] + d.target.properties.land) *
-        (1 - extent[0] + d.target.properties.land));
-    d.w = d.length * d.mult; // divide / d.mult to favor ocean links
-  });
-
-  var k = {
-    type: "FeatureCollection",
-    features: kruskal(links).map(l => ({
-      type: "LineString",
-      coordinates: [l.source.coordinates, l.target.coordinates],
-      properties: l
-    }))
-  };
+  var k = kruskal(
+    links.map(
+      d => ((d.source.index = d.source[2]), (d.target.index = d.target[2]), d)
+    ),
+    cost2
+  ).map(l => ({
+    type: "LineString",
+    coordinates: [l.source, l.target],
+    properties: l
+  }));
 
   // Build a tree of the faces
   var parents = [-1];
   var search = n - 1;
   do {
-    k.features.forEach(l => {
-      var s = l.properties.source.index,
-        t = l.properties.target.index;
+    k.forEach(l => {
+      var s = l.properties.source[2],
+        t = l.properties.target[2];
       if (parents[s] !== undefined && parents[t] === undefined) {
         parents[t] = s;
         search--;
@@ -269,16 +216,13 @@ const parents = (function() {
 })();
 
 const degrees = 180 / Math.PI;
-const faceFind = function(lambda, phi) {
-  return voro.find(lambda * degrees, phi * degrees).index;
-};
 
 console.warn(Date.now() - time);
 time = Date.now();
 process.stderr.write("computing projection… ");
 const projection = d3
-  .geoPolyhedralVoronoi(parents, polygons, null, null && faceFind)
-  .angle(29 /* + 90 */) // ocean
+  .geoPolyhedralVoronoi(parents, polygons, null, voro.find)
+  .angle(55 /* + 90 */) // ocean
   .fitExtent([[0, 0], [width, height]], { type: "Sphere" });
 
 var path = d3
@@ -293,7 +237,7 @@ console.warn(Date.now() - time);
 time = Date.now();
 process.stderr.write("projecting sphere… ");
 context.beginPath();
-path(outline);
+path({ type: "Sphere" });
 context.fillStyle = "#fefef6";
 context.fill();
 
@@ -309,7 +253,7 @@ console.warn(Date.now() - time);
 time = Date.now();
 process.stderr.write("projecting graticule… ");
 context.beginPath();
-path(graticule());
+//path(graticule());
 context.strokeStyle = "rgba(119,119,119,0.5)";
 context.stroke();
 
@@ -317,10 +261,61 @@ console.warn(Date.now() - time);
 time = Date.now();
 process.stderr.write("projecting sphere… ");
 context.beginPath();
-path(outline);
+path({ type: "Sphere" });
 context.strokeStyle = "#000";
 context.stroke();
 
 console.warn(Date.now() - time);
 time = Date.now();
 canvas.pngStream().pipe(process.stdout);
+
+////
+
+// https://beta.observablehq.com/@fil/another-hex-map#geoContainsCache
+function geoContainsCache(land) {
+  var w = 5000,
+    h = 5000,
+    projection = d3.geoAzimuthalEqualArea().fitSize([w, h], { type: "Sphere" }),
+    canvas = new Canvas(w, h),
+    context = canvas.getContext("2d"),
+    path = d3.geoPath(projection, context);
+  canvas.width = w;
+  canvas.height = h;
+  context.fillStyle = "white";
+  context.fillRect(0, 0, w, h);
+  context.fillStyle = "black";
+  context.beginPath(), path(land), context.fill();
+  var c = context.getImageData(0, 0, w, h).data;
+  canvas = context = path = null; // free up memory
+  return function(point) {
+    point = projection(point);
+    return c[4 * (Math.floor(point[0]) + Math.floor(point[1]) * w)] < 128;
+  };
+}
+
+function dist2shore() {
+  function geoVertices(feature) {
+    const vertices = [];
+    const stream = {
+      point: function(lambda, phi) {
+        vertices.push([lambda, phi]);
+      },
+      lineStart: function() {},
+      lineEnd: function() {},
+      polygonStart: function() {},
+      polygonEnd: function() {}
+    };
+    d3.geoStream(feature, stream);
+    return vertices;
+  }
+
+  const vertices = geoVertices(land),
+    delaunay = d3.geoDelaunay(vertices);
+
+  return function(a) {
+    return (
+      d3.geoDistance(a, vertices[delaunay.find(a[0], a[1])]) *
+      (contains(a) ? 1 : -1)
+    );
+  };
+}
