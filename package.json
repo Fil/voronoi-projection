@@ -1,0 +1,29 @@
+{
+  "name": "voronoi-projection",
+  "version": "0.0.1",
+  "description": "Voronoi projection.",
+  "keywords": [
+    "d3",
+    "geo",
+    "polygon"
+  ],
+  "homepage": "https://github.com/Fil/voronoi-projection",
+  "license": "MIT",
+  "author": {
+    "name": "Philippe Rivière",
+    "url": "https://visionscarto.net"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Fil/voronoi-projection.git"
+  },
+  "dependencies": {
+    "canvas": "1",
+    "d3-array": "^0",
+    "d3-delaunay": "^4",
+    "d3-geo": "^1.10",
+    "d3-geo-polygon": "^1",
+    "d3-geo-voronoi": "^1.1",
+    "world-atlas": "^0"
+  }
+}
