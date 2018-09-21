@@ -1,7 +1,7 @@
 #!/usr/bin/env node --max-old-space-size=4096
 
 var width = 5 * 960,
-  height = 5 * 960;
+  height = 3 * 960;
 
 var fs = require("fs"),
   topojson = require("topojson-client"),
@@ -17,12 +17,13 @@ var fs = require("fs"),
 var canvas = new Canvas(width, height),
   context = canvas.getContext("2d");
 
-var world = require("world-atlas/world/110m.json"),
+var world = require("visionscarto-world-atlas/world/110m.json"),
   land = topojson.feature(world, world.objects.land),
   graticule = d3.geoGraticule(),
   outline = { type: "Sphere" };
 
-const n = +process.argv[2] || 200;
+const n = +process.argv[2] || 200,
+  ocean = !!process.argv[3];
 
 var time = Date.now();
 
@@ -66,8 +67,15 @@ const contains = geoContainsCache(land),
   inland = points.map(d => +contains(d)),
   shore = points.map(dist2shore());
 
+// d.mult = 1 * (
+//  (1 - extent[0] + d.source.properties.land)
+// *(1 - extent[0] + d.source.properties.land)
+// * (1 - extent[0] + d.target.properties.land)
+// * (1 - extent[0] + d.target.properties.land));
 function cost2(a, b) {
-  return d3.geoDistance(a, b) / (2 + (shore[a[2]] + shore[b[2]]));
+  var mult = (1 + shore[a[2]]) ** 2 * (1 + shore[b[2]]) ** 2;
+  if (ocean) mult = 1 / mult;
+  return d3.geoDistance(a, b) / mult;
 }
 
 const kruskal = (function() {

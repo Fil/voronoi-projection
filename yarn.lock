@@ -64,6 +64,12 @@ nan@^2.10.0:
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.11.0.tgz#574e360e4d954ab16966ec102c0c049fd961a099"
 
-world-atlas@^0:
-  version "0.0.3"
-  resolved "https://registry.yarnpkg.com/world-atlas/-/world-atlas-0.0.3.tgz#2f3348c27aaf25d5c7750311b76a98fe7d4ef137"
+topojson-client@^3:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/topojson-client/-/topojson-client-3.0.0.tgz#1f99293a77ef42a448d032a81aa982b73f360d2f"
+  dependencies:
+    commander "2"
+
+visionscarto-world-atlas@^0:
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/visionscarto-world-atlas/-/visionscarto-world-atlas-0.0.4.tgz#3bc2d741cc6fab128821b9886a9db767a89fca7b"
