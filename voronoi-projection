@@ -19,11 +19,18 @@ commander
   .usage("[options]")
   .description("Generate a Voronoi map.")
   .option("-n, --n <value>", "number of faces; defaults to " + 200, 200)
-  .option("--ocean", "favor ocean links", false)
-  .option("--fibonacci", "fibonacci distribution", false)
-  .option("--noise <value>", "perturbation (try: 1)", 0)
   .option("-w, --width <value>", "width", 2 * 960)
   .option("-h, --height <value>", "width", null)
+  .option("--graticule", "show graticule", false)
+  .option(
+    "--land <value>",
+    "strategy for land (auto, full, point, poly, none)",
+    "auto"
+  )
+  .option("--ocean", "favor ocean links", false)
+  .option("--fibonacci", "fibonacci distribution", false)
+  .option("--centroids", "large countries centroids distribution", false)
+  .option("--noise <value>", "perturbation (try: 1)", 0)
   .parse(process.argv);
 
 var width = +commander.width,
@@ -34,12 +41,17 @@ var canvas = new Canvas(width, height),
 
 var world = require("visionscarto-world-atlas/world/110m.json"),
   land = topojson.feature(world, world.objects.land),
+  countries = topojson.feature(world, world.objects.countries),
   graticule = d3.geoGraticule(),
   outline = { type: "Sphere" };
 
 const n = +commander.n,
   ocean = !!commander.ocean,
-  pointdistribution = commander.fibonacci ? fibonacci : randompoints;
+  pointdistribution = commander.centroids
+    ? centroids
+    : commander.fibonacci
+      ? fibonacci
+      : randompoints;
 
 var time = Date.now();
 
@@ -48,6 +60,9 @@ randomseed(4);
 process.stderr.write("computing points… ");
 
 const points = pointdistribution(n);
+points.forEach((p, i) => {
+  p[2] = i;
+});
 
 if (commander.noise) {
   const perturb = +commander.noise / Math.sqrt(n);
@@ -252,21 +267,46 @@ path({ type: "Sphere" });
 context.fillStyle = "#fefef6";
 context.fill();
 
+if (commander.land === "auto") commander.land = n < 1000 ? "full" : "poly";
+
 console.warn(Date.now() - time);
 time = Date.now();
 process.stderr.write("projecting land… ");
 context.beginPath();
-path(land);
+switch (commander.land) {
+  case "full":
+    path(land);
+    break;
+  case "point":
+    path.pointRadius(Math.sqrt(300000 / n));
+    points.forEach(p => contains(p) && path({ type: "Point", coordinates: p }));
+    break;
+
+  case "poly":
+    const preclip = projection.preclip();
+    projection.preclip(s => s);
+    context.beginPath();
+    points.forEach(
+      (p, i) => contains(p) && path(shrink(polygons.features[i].geometry))
+    );
+    projection.preclip(preclip);
+    break;
+
+  case "none":
+    break;
+}
 context.fillStyle = "#000";
 context.fill();
 
-console.warn(Date.now() - time);
-time = Date.now();
-process.stderr.write("projecting graticule… ");
-context.beginPath();
-//path(graticule());
-context.strokeStyle = "rgba(119,119,119,0.5)";
-context.stroke();
+if (commander.graticule) {
+  console.warn(Date.now() - time);
+  time = Date.now();
+  process.stderr.write("projecting graticule… ");
+  context.beginPath();
+  path(graticule());
+  context.strokeStyle = "rgba(119,119,119,0.5)";
+  context.stroke();
+}
 
 console.warn(Date.now() - time);
 time = Date.now();
@@ -317,13 +357,12 @@ function dist2shore() {
 
 // point distribution functions
 function randompoints(n) {
-  return [[0, 0, 0]].concat(
+  return [[0, 0]].concat(
     d3
       .range(n - 1)
       .map(i => [
         360 * Math.random() - 180,
-        90 * (Math.random() - Math.random()),
-        i + 1
+        90 * (Math.random() - Math.random())
       ])
   );
 }
@@ -335,10 +374,17 @@ function fibonacci(n) {
       y = i / n;
     return [
       ((x * 360) % 360) - 180,
-      (Math.acos(2 * y - 1) / Math.PI) * 180 - 90,
-      i
+      (Math.acos(2 * y - 1) / Math.PI) * 180 - 90
     ];
   });
+}
+
+function centroids(n) {
+  return countries.features
+    .slice()
+    .sort((a, b) => d3.geoArea(b) - d3.geoArea(a))
+    .slice(0, n)
+    .map(d3.geoCentroid);
 }
 
 function randomseed(k) {
@@ -364,4 +410,14 @@ function geoVertices(feature) {
   };
   d3.geoStream(feature, stream);
   return vertices;
+}
+
+function shrink(polygon) {
+  const c = d3.geoCentroid(polygon);
+  return {
+    type: "Polygon",
+    coordinates: [
+      polygon.coordinates[0].map(d => d3.geoInterpolate(d, c)(0.01))
+    ]
+  };
 }
