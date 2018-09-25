@@ -1,6 +1,6 @@
 #!/usr/bin/env node --max-old-space-size=4096
 
-var fs = require("fs"),
+const fs = require("fs"),
   topojson = require("topojson-client"),
   Canvas = require("canvas"),
   d3 = Object.assign(
@@ -9,9 +9,10 @@ var fs = require("fs"),
     require("d3-geo"),
     require("d3-geo-voronoi"),
     require("d3-geo-polygon")
-  );
+  ),
+  radians = Math.PI / 180;
 
-var commander = require("commander");
+const commander = require("commander");
 
 commander
   .version(require("./package.json").version)
@@ -19,6 +20,8 @@ commander
   .description("Generate a Voronoi map.")
   .option("-n, --n <value>", "number of faces; defaults to " + 200, 200)
   .option("--ocean", "favor ocean links", false)
+  .option("--fibonacci", "fibonacci distribution", false)
+  .option("--noise <value>", "perturbation (try: 0.7)", 0)
   .option("-w, --width <value>", "width", 2 * 960)
   .option("-h, --height <value>", "width", null)
   .parse(process.argv);
@@ -35,31 +38,23 @@ var world = require("visionscarto-world-atlas/world/110m.json"),
   outline = { type: "Sphere" };
 
 const n = +commander.n,
-  ocean = !!commander.ocean;
+  ocean = !!commander.ocean,
+  pointdistribution = commander.fibonacci ? fibonacci : randompoints;
 
 var time = Date.now();
 
+randomseed(4);
+
 process.stderr.write("computing points… ");
 
-const points = (function() {
-  Math.seed = function(s) {
-    return function() {
-      s = Math.sin(s) * 10000;
-      return s - Math.floor(s);
-    };
-  };
-  Math.random = Math.seed(4);
+const points = pointdistribution(n);
 
-  return [[0, 0, 0]].concat(
-    d3
-      .range(n - 1)
-      .map(i => [
-        360 * Math.random() - 180,
-        90 * (Math.random() - Math.random()),
-        i + 1
-      ])
-  );
-})();
+if (commander.noise) {
+  const perturb = +commander.noise / Math.sqrt(n);
+  points.forEach((p, i) => {
+    p[0] += ((Math.random() - 0.5) * perturb * 360) / Math.cos(p[1] * radians);
+  });
+}
 
 console.warn(Date.now() - time);
 time = Date.now();
@@ -237,7 +232,7 @@ time = Date.now();
 process.stderr.write("computing projection… ");
 const projection = d3
   .geoPolyhedralVoronoi(parents, polygons, null, voro.find)
-  .angle(55)
+  .angle(-10)
   .fitExtent([[3, 3], [width - 3, height - 3]], { type: "Sphere" });
 
 var path = d3
@@ -333,4 +328,36 @@ function dist2shore() {
       (contains(a) ? 1 : -1)
     );
   };
+}
+
+// point distribution functions
+function randompoints(n) {
+  return [[0, 0, 0]].concat(
+    d3
+      .range(n - 1)
+      .map(i => [
+        360 * Math.random() - 180,
+        90 * (Math.random() - Math.random()),
+        i + 1
+      ])
+  );
+}
+
+function fibonacci(n) {
+  const phi = (1 + Math.sqrt(5)) / 2;
+  return d3.range(n).map(i => {
+    const x = i / phi,
+      y = i / n;
+    return [(x * 360) % 360, (Math.acos(2 * y - 1) / Math.PI) * 180 - 90, i];
+  });
+}
+
+function randomseed(k) {
+  Math.seed = function(s) {
+    return function() {
+      s = Math.sin(s) * 10000;
+      return s - Math.floor(s);
+    };
+  };
+  Math.random = Math.seed(k);
 }
