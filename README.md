@@ -8,7 +8,7 @@ Generate a Voronoi map.
 Options:
 
   -V, --version        output the version number
-  -n, --n <value>      number of faces; defaults to 200 (default: 200)
+  -n, --n <value>      number of faces (default: 200)
   -w, --width <value>  width (default: 1920)
   --height <value>     height (default: null)
   --angle <value>      angle (in degrees) (default: auto)

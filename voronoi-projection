@@ -18,7 +18,7 @@ commander
   .version(require("./package.json").version)
   .usage("[options]")
   .description("Generate a Voronoi map.")
-  .option("-n, --n <value>", "number of faces; defaults to " + 200, 200)
+  .option("-n, --n <value>", "number of faces", 200)
   .option("-w, --width <value>", "width", 2 * 960)
   .option("--height <value>", "height", null)
   .option("--angle <value>", "angle (in degrees)", "auto")
