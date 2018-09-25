@@ -21,6 +21,7 @@ commander
   .option("-n, --n <value>", "number of faces; defaults to " + 200, 200)
   .option("-w, --width <value>", "width", 2 * 960)
   .option("-h, --height <value>", "width", null)
+  .option("--angle <value>", "angle (value or 'auto')", "auto")
   .option("--graticule", "show graticule", false)
   .option(
     "--land <value>",
@@ -243,24 +244,34 @@ const parents = (function() {
 
 const degrees = 180 / Math.PI;
 
+context.fillStyle = "#fff";
+context.fillRect(0, 0, width, height);
+
 console.warn(Date.now() - time);
 time = Date.now();
 process.stderr.write("computing projection… ");
-const projection = d3
-  .geoPolyhedralVoronoi(parents, polygons, null, voro.find)
-  .angle(-10)
-  .fitExtent([[3, 3], [width - 3, height - 3]], { type: "Sphere" });
+const projection = d3.geoPolyhedralVoronoi(parents, polygons, null, voro.find);
 
 var path = d3
   .geoPath()
   .projection(projection)
   .context(context);
 
-context.fillStyle = "#fff";
-context.fillRect(0, 0, width, height);
+if (commander.angle === "auto") {
+  console.warn(Date.now() - time);
+  time = Date.now();
+  process.stderr.write("computing angle… ");
+  commander.angle = angle(points, projection);
+}
 
 console.warn(Date.now() - time);
 time = Date.now();
+
+projection
+  .angle(+commander.angle)
+  .fitExtent([[3, 3], [width - 3, height - 3]], { type: "Sphere" });
+console.warn("angle", +commander.angle);
+
 process.stderr.write("projecting sphere… ");
 context.beginPath();
 path({ type: "Sphere" });
@@ -420,4 +431,54 @@ function shrink(polygon) {
       polygon.coordinates[0].map(d => d3.geoInterpolate(d, c)(0.01))
     ]
   };
+}
+
+// find a good angle for the projection
+function angle(points, projection) {
+  const A = convexHull(points.map(projection));
+  return d3.scan(
+    d3.range(360).map(function(angle) {
+      const c = Math.cos(angle * radians),
+        s = -Math.sin(angle * radians),
+        w = d3.extent(A.map(p => p[1] * c + p[0] * s));
+      return w[1] - w[0];
+    })
+  );
+}
+
+/**
+ * @param points An array of [X, Y] coordinates
+ * https://beta.observablehq.com/@fil/planar-hull-andrews-monotone-chain-algorithm
+ */
+function convexHull(points) {
+  function cross(a, b, o) {
+    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  }
+
+  points.sort(function(a, b) {
+    return a[0] == b[0] ? a[1] - b[1] : a[0] - b[0];
+  });
+  var lower = [];
+  for (var i = 0; i < points.length; i++) {
+    while (
+      lower.length >= 2 &&
+      cross(lower[lower.length - 2], lower[lower.length - 1], points[i]) <= 0
+    ) {
+      lower.pop();
+    }
+    lower.push(points[i]);
+  }
+  var upper = [];
+  for (var i = points.length - 1; i >= 0; i--) {
+    while (
+      upper.length >= 2 &&
+      cross(upper[upper.length - 2], upper[upper.length - 1], points[i]) <= 0
+    ) {
+      upper.pop();
+    }
+    upper.push(points[i]);
+  }
+
+  lower.pop();
+  return lower.concat(upper);
 }
