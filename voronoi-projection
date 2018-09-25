@@ -437,7 +437,7 @@ function shrink(polygon) {
 function angle(points, projection) {
   const A = convexHull(points.map(projection));
   return d3.scan(
-    d3.range(360).map(function(angle) {
+    d3.range(180).map(function(angle) {
       const c = Math.cos(angle * radians),
         s = -Math.sin(angle * radians),
         w = d3.extent(A.map(p => p[1] * c + p[0] * s));
