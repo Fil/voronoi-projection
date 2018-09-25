@@ -20,8 +20,8 @@ commander
   .description("Generate a Voronoi map.")
   .option("-n, --n <value>", "number of faces; defaults to " + 200, 200)
   .option("-w, --width <value>", "width", 2 * 960)
-  .option("-h, --height <value>", "width", null)
-  .option("--angle <value>", "angle (value or 'auto')", "auto")
+  .option("--height <value>", "height", null)
+  .option("--angle <value>", "angle (in degrees)", "auto")
   .option("--graticule", "show graticule", false)
   .option(
     "--land <value>",
