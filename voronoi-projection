@@ -21,7 +21,7 @@ commander
   .option("-n, --n <value>", "number of faces; defaults to " + 200, 200)
   .option("--ocean", "favor ocean links", false)
   .option("--fibonacci", "fibonacci distribution", false)
-  .option("--noise <value>", "perturbation (try: 0.7)", 0)
+  .option("--noise <value>", "perturbation (try: 1)", 0)
   .option("-w, --width <value>", "width", 2 * 960)
   .option("-h, --height <value>", "width", null)
   .parse(process.argv);
@@ -52,7 +52,8 @@ const points = pointdistribution(n);
 if (commander.noise) {
   const perturb = +commander.noise / Math.sqrt(n);
   points.forEach((p, i) => {
-    p[0] += ((Math.random() - 0.5) * perturb * 360) / Math.cos(p[1] * radians);
+    p[0] += ((Math.random() - 0.5) * perturb * 180) / Math.cos(p[1] * radians);
+    p[1] = (p[1] + (Math.random() - 0.5) * perturb * 180) % 90;
   });
 }
 
@@ -304,24 +305,8 @@ function geoContainsCache(land) {
 }
 
 function dist2shore() {
-  function geoVertices(feature) {
-    const vertices = [];
-    const stream = {
-      point: function(lambda, phi) {
-        vertices.push([lambda, phi]);
-      },
-      lineStart: function() {},
-      lineEnd: function() {},
-      polygonStart: function() {},
-      polygonEnd: function() {}
-    };
-    d3.geoStream(feature, stream);
-    return vertices;
-  }
-
   const vertices = geoVertices(land),
     delaunay = d3.geoDelaunay(vertices);
-
   return function(a) {
     return (
       d3.geoDistance(a, vertices[delaunay.find(a[0], a[1])]) *
@@ -348,7 +333,11 @@ function fibonacci(n) {
   return d3.range(n).map(i => {
     const x = i / phi,
       y = i / n;
-    return [(x * 360) % 360, (Math.acos(2 * y - 1) / Math.PI) * 180 - 90, i];
+    return [
+      ((x * 360) % 360) - 180,
+      (Math.acos(2 * y - 1) / Math.PI) * 180 - 90,
+      i
+    ];
   });
 }
 
@@ -360,4 +349,19 @@ function randomseed(k) {
     };
   };
   Math.random = Math.seed(k);
+}
+
+function geoVertices(feature) {
+  const vertices = [];
+  const stream = {
+    point: function(lambda, phi) {
+      vertices.push([lambda, phi]);
+    },
+    lineStart: function() {},
+    lineEnd: function() {},
+    polygonStart: function() {},
+    polygonEnd: function() {}
+  };
+  d3.geoStream(feature, stream);
+  return vertices;
 }
