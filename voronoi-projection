@@ -1,8 +1,5 @@
 #!/usr/bin/env node --max-old-space-size=4096
 
-var width = 5 * 960,
-  height = 3 * 960;
-
 var fs = require("fs"),
   topojson = require("topojson-client"),
   Canvas = require("canvas"),
@@ -14,6 +11,21 @@ var fs = require("fs"),
     require("d3-geo-polygon")
   );
 
+var commander = require("commander");
+
+commander
+  .version(require("./package.json").version)
+  .usage("[options]")
+  .description("Generate a Voronoi map.")
+  .option("-n, --n <value>", "number of faces; defaults to " + 200, 200)
+  .option("--ocean", "favor ocean links", false)
+  .option("-w, --width <value>", "width", 2 * 960)
+  .option("-h, --height <value>", "width", null)
+  .parse(process.argv);
+
+var width = +commander.width,
+  height = +commander.height || ((3 / 5) * width) | 0;
+
 var canvas = new Canvas(width, height),
   context = canvas.getContext("2d");
 
@@ -22,8 +34,8 @@ var world = require("visionscarto-world-atlas/world/110m.json"),
   graticule = d3.geoGraticule(),
   outline = { type: "Sphere" };
 
-const n = +process.argv[2] || 200,
-  ocean = !!process.argv[3];
+const n = +commander.n,
+  ocean = !!commander.ocean;
 
 var time = Date.now();
 
@@ -67,11 +79,6 @@ const contains = geoContainsCache(land),
   inland = points.map(d => +contains(d)),
   shore = points.map(dist2shore());
 
-// d.mult = 1 * (
-//  (1 - extent[0] + d.source.properties.land)
-// *(1 - extent[0] + d.source.properties.land)
-// * (1 - extent[0] + d.target.properties.land)
-// * (1 - extent[0] + d.target.properties.land));
 function cost2(a, b) {
   var mult = (1 + shore[a[2]]) ** 2 * (1 + shore[b[2]]) ** 2;
   if (ocean) mult = 1 / mult;
@@ -230,8 +237,8 @@ time = Date.now();
 process.stderr.write("computing projection… ");
 const projection = d3
   .geoPolyhedralVoronoi(parents, polygons, null, voro.find)
-  .angle(55 /* + 90 */) // ocean
-  .fitExtent([[0, 0], [width, height]], { type: "Sphere" });
+  .angle(55)
+  .fitExtent([[3, 3], [width - 3, height - 3]], { type: "Sphere" });
 
 var path = d3
   .geoPath()

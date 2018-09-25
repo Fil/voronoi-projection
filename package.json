@@ -19,12 +19,13 @@
   },
   "dependencies": {
     "canvas": "1",
+    "commander": "2",
     "d3-array": "^0",
     "d3-delaunay": "^4",
     "d3-geo": "^1.10",
     "d3-geo-polygon": "^1",
     "d3-geo-voronoi": "^1.1",
-    "visionscarto-world-atlas": "^0",
-    "topojson-client": "^3"
+    "topojson-client": "^3",
+    "visionscarto-world-atlas": "^0"
   }
 }
