@@ -20,6 +20,10 @@ d3-array@^0:
   version "0.8.1"
   resolved "https://registry.yarnpkg.com/d3-array/-/d3-array-0.8.1.tgz#bc0a3f2217ec6156c8620e7698ba644fac4661c3"
 
+d3-color@1:
+  version "1.2.3"
+  resolved "https://registry.yarnpkg.com/d3-color/-/d3-color-1.2.3.tgz#6c67bb2af6df3cc8d79efcc4d3a3e83e28c8048f"
+
 d3-delaunay@^4, d3-delaunay@^4.1.2:
   version "4.1.5"
   resolved "https://registry.yarnpkg.com/d3-delaunay/-/d3-delaunay-4.1.5.tgz#4318c6d28b22988d88d11650eda440318afe419a"
@@ -55,6 +59,19 @@ d3-geo@^1.0, d3-geo@^1.10, d3-geo@^1.10.0, d3-geo@^1.11.1:
   resolved "https://registry.yarnpkg.com/d3-geo/-/d3-geo-1.11.1.tgz#3f35e582c0d29296618b02a8ade0fdffb2c0e63c"
   dependencies:
     d3-array "1"
+
+d3-interpolate@1:
+  version "1.3.2"
+  resolved "https://registry.yarnpkg.com/d3-interpolate/-/d3-interpolate-1.3.2.tgz#417d3ebdeb4bc4efcc8fd4361c55e4040211fd68"
+  dependencies:
+    d3-color "1"
+
+d3-scale-chromatic@^1:
+  version "1.3.3"
+  resolved "https://registry.yarnpkg.com/d3-scale-chromatic/-/d3-scale-chromatic-1.3.3.tgz#dad4366f0edcb288f490128979c3c793583ed3c0"
+  dependencies:
+    d3-color "1"
+    d3-interpolate "1"
 
 delaunator@^2.0.0:
   version "2.0.5"

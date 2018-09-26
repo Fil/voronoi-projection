@@ -2,11 +2,7 @@
   "name": "voronoi-projection",
   "version": "0.0.1",
   "description": "Voronoi projection.",
-  "keywords": [
-    "d3",
-    "geo",
-    "polygon"
-  ],
+  "keywords": ["d3", "geo", "polygon"],
   "homepage": "https://github.com/Fil/voronoi-projection",
   "license": "MIT",
   "author": {
@@ -25,6 +21,7 @@
     "d3-geo": "^1.10",
     "d3-geo-polygon": "^1",
     "d3-geo-voronoi": "^1.1",
+    "d3-scale-chromatic": "^1",
     "topojson-client": "^3",
     "visionscarto-world-atlas": "^0"
   }
