@@ -11,6 +11,7 @@ Options:
   -n, --n <value>      number of faces (default: 200)
   -w, --width <value>  width (default: 1920)
   --height <value>     height (default: null)
+  --colors <value>     color scheme (default: none)
   --angle <value>      angle (in degrees) (default: auto)
   --graticule          show graticule
   --land <value>       strategy for land (auto, full, point, poly, none) (default: auto)
