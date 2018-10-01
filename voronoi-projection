@@ -23,6 +23,7 @@ commander
   .option("-w, --width <value>", "width", 2 * 960)
   .option("--height <value>", "height", null)
   .option("--colors <value>", "color scheme", "none")
+  .option("--background <value>", "background color ('' for transparent)", "white")
   .option("--angle <value>", "angle (in degrees)", "auto")
   .option("--graticule", "show graticule", false)
   .option(
@@ -245,8 +246,10 @@ const parents = (function() {
 
 const degrees = 180 / Math.PI;
 
-context.fillStyle = "#fff";
-context.fillRect(0, 0, width, height);
+if (commander.background) {
+  context.fillStyle = commander.background;
+  context.fillRect(0, 0, width, height);
+}
 
 console.warn(Date.now() - time);
 time = Date.now();
@@ -263,6 +266,7 @@ if (commander.angle === "auto") {
   time = Date.now();
   process.stderr.write("computing angle… ");
   commander.angle = angle(points, projection);
+  process.stderr.write(`${commander.angle}° `);
 }
 
 console.warn(Date.now() - time);
@@ -271,7 +275,6 @@ time = Date.now();
 projection
   .angle(+commander.angle)
   .fitExtent([[3, 3], [width - 3, height - 3]], { type: "Sphere" });
-console.warn("angle", +commander.angle);
 
 process.stderr.write("projecting sphere… ");
 if (commander.colors !== "none") {
