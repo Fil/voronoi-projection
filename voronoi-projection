@@ -170,16 +170,15 @@ const kruskal = (function() {
   function kruskal(graph, dist) {
     // 1   A := ø
     const A = [];
-    // 2   pour chaque sommet v de G :
-    // 3      créerEnsemble(v)
+    // 2   for each vertex v of G :
+    // 3      create set(v)
     let n = -Infinity;
     graph.forEach(l => {
       if (l.source.index > n) n = l.source.index;
       if (l.target.index > n) n = l.target.index;
     });
-
     const uf = new UnionFind(n);
-    // 4   trier les arêtes de G par poids croissant
+    // 4   sort the edges of G by increasing weight
 
     graph = graph.map(l => {
       l.w = dist ? dist(l.source, l.target) : l.length;
@@ -187,19 +186,18 @@ const kruskal = (function() {
     });
     graph
       .sort((a, b) => d3.ascending(a.w, b.w))
-      // 5   pour chaque arête (u, v) de G prise par poids croissant :
+      // 5   for each edge (u, v) of G (sorted by weigth):
       .forEach(l => {
-        // 6      si find(u) ≠ find(v) :
+        // 6      if find(u) ≠ find(v) :
         if (uf.find(l.source.index) != uf.find(l.target.index)) {
-          // 7         ajouter l'arête (u, v) à l'ensemble A
+          // 7         add (u, v) to the set A
           A.push(l);
           // 8         union(u, v)
           uf.link(l.source.index, l.target.index);
         }
       });
-    // 9   retourner A
+    // 9   solution = A
     return A;
-    //	yield uf;
   }
 
   return kruskal;
