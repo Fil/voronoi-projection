@@ -23,4 +23,17 @@ Options:
   -h, --help            output usage information
 ```
 
+Comments and timings will be printed to STDERR, and the resulting image sent to STDOUT.
+
+Typical usage could be:
+```
+./voronoi-projection > voronoi-world.png
+```
+
+or:
+```
+./voronoi-projection --colors schemeSet3 --centroids | imgcat
+```
+
+
 ![](img/screen.png)
