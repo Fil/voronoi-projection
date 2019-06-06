@@ -14,7 +14,7 @@
     "url": "https://github.com/Fil/voronoi-projection.git"
   },
   "dependencies": {
-    "canvas": "1",
+    "canvas": "1.6.11",
     "commander": "2",
     "d3-array": "^0",
     "d3-delaunay": "^4",
